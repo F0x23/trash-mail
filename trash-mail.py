@@ -1,71 +1,88 @@
 #!/usr/bin/env python3
 
-import requests, pickle
-import getpass
-import os
 from bs4 import BeautifulSoup
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
+import webbrowser
+import tempfile
+import requests
+import getpass
+import pickle
+import os
+
+# Disable warnings in requests vendored urllib3
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-def save_cookies(requests_cookiejar, filename):
-    with open(filename, 'wb') as f:
-        pickle.dump(requests_cookiejar, f)
+class trashmail:
+	def __init__(self):
+		self.domain			= 'fake-box.com'
+		self.url_inbox		= 'https://www.trash-mail.com/inbox/'
+		self.url_message	= 'https://www.trash-mail.com/en/mail/message/id/'
+		self.cafile			= './trash-mail.pem'
+		self.cookiefile		= 'trash-mail.cookie'
 
-def load_cookies(filename):
-    with open(filename, 'rb') as f:
-        return pickle.load(f)
+	def save_cookies(self, requests_cookiejar):
+		with open(self.cookiefile, 'wb') as f:
+			pickle.dump(requests_cookiejar, f)
 
-def save_message(info, content, filename):
-    with open(filename, 'w') as f:
-        f.write(str(info))
-        f.write(str(content))
+	def load_cookies(self):
+		with open(self.cookiefile, 'rb') as f:
+			return pickle.load(f)
 
-def login():
-    usr = input("Postbox: ")
-    pwd	= getpass.getpass("Password: ")
-    payload = {'form-postbox': usr, 'form-password': pwd, 'form-domain': 'fake-box.com---1'}
-    return payload
+	def save_message(self, n):
+		response = requests.post(self.url_message + n, cookies=self.cookies, verify=self.cafile)
+		soup = BeautifulSoup(response.text, "html.parser")
+		info 	= soup.find('div', {'class':'message-info'})
+		content = soup.find('div', {'class':'message-content'})
+		with tempfile.NamedTemporaryFile(mode='w+t', suffix=".html", delete=True) as f:
+			f.write(str(info))
+			f.write(str(content))
+			f.seek(0)
+			webbrowser.open("file://" + f.name)
+			print("Output: file://" + f.name)
+			input("[Enter] Delte and Contiune...")
 
-url	= 'https://www.trash-mail.com/inbox/'
-cafile	= './trash-mail.pem'
-session = requests.session()
+	def login(self):
+		usr     = input("User: ")
+		domain	= input("Domain: ")
+		pwd     = getpass.getpass("Password: ")
+		payload = ({'form-postbox': usr,
+					'form-password': pwd,
+					'form-domain': domain + '---1'})
+		response = requests.post(self.url_inbox, data=payload, verify=self.cafile)
+		self.html 		= response.text
+		self.cookies 	= response.cookies
+		self.save_cookies(response.cookies)
 
+	def login_with_cookies(self):
+		self.cookies = self.load_cookies()
+		response = requests.post(self.url_inbox, cookies=self.cookies, verify=self.cafile)
+		if (response.headers['Connection'] == 'close'):
+			print("Session closed!")
+			self.login()
+		else:
+			self.html		= response.text
 
-try:
-	response = requests.post(url, cookies=load_cookies("trash-mail.cookie"), verify=cafile)
-	if (response.headers['Connection'] == 'close'):
-		print("Session closed!")
-		payload = login()
-		response = requests.post(url, data=payload, verify=cafile)
-		save_cookies(response.cookies, 'trash-mail.cookie')
+	def list_messages(self):
+		soup 		= BeautifulSoup(self.html, "html.parser")
+		self.mail 	= soup.find('a', {'class':'nolink-default'}).string
+		print("Logged in as " +  self.mail)
 
-except IOError:
-	payload = login()
-	response = requests.post(url, data=payload, verify=cafile)
-	save_cookies(response.cookies, 'trash-mail.cookie')
+		messages=soup.findAll('p', {'class':'message-subject'})
+		i=len(messages)+1
+		for m in messages:
+			i-=1
+			print("[" + str(i) + "] " + m.string)
 
-html = response.text
-soup = BeautifulSoup(html, "html.parser")
+if(__name__ == '__main__'):
 
-mail = soup.find('a', {'class':'nolink-default'})
-print("Logged in as: " + mail.string)
+	mail = trashmail()
 
-messages=soup.findAll('p', {'class':'message-subject'})
-i=len(messages)+1
-for m in messages:
-	i-=1
-	print("[" + str(i) + "] " + m.string)
+	if os.path.isfile('trash-mail.cookie'):
+		mail.login_with_cookies()
+	else:
+		mail.login()
 
-q = input("Output message: ")
-
-response = requests.post("https://www.trash-mail.com/en/mail/message/id/" + q, cookies=load_cookies("trash-mail.cookie"), verify=cafile)
-
-html = response.text
-soup = BeautifulSoup(html, "html.parser")
-
-message_info 	= soup.find('div', {'class':'message-info'})
-message_content = soup.find('div', {'class':'message-content'})
-
-save_message(message_info, message_content, "out.html")
-print("Output: file://" + str(os.getcwd()) + "/out.html")
+	mail.list_messages()
+	n = input("Open Nr.: ")
+	mail.save_message(n)
