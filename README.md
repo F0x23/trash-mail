@@ -1,3 +1,3 @@
 # trash-mail
 
-Open mails from [trash-mail.com](trash-mail.com)
+Open mails from [www.trash-mail.com](https://www.trash-mail.com)
