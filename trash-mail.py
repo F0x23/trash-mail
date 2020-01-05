@@ -7,6 +7,7 @@ import tempfile
 import requests
 import getpass
 import pickle
+import sys
 import os
 
 # Disable warnings in requests vendored urllib3
@@ -84,5 +85,13 @@ if(__name__ == '__main__'):
 		mail.login()
 
 	mail.list_messages()
-	n = input("Open Nr.: ")
-	mail.save_message(n)
+	q = input("[O]pen message [L]og out [C]ancel: ")
+
+	if (q.upper() == "O"):
+		n = input("Message Nr.: ")
+		mail.save_message(n)
+	elif (q.upper() == "L"):
+		os.remove("trash-mail.cookie")
+		sys.exit(0)
+	else:
+		sys.exit(0)
