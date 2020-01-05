@@ -47,9 +47,13 @@ class trashmail:
 		usr     = input("User: ")
 		domain	= input("Domain: ")
 		pwd     = getpass.getpass("Password: ")
+		if(pwd):
+			index = "1"
+		else:
+			index = "0"
 		payload = ({'form-postbox': usr,
 					'form-password': pwd,
-					'form-domain': domain + '---1'})
+					'form-domain': domain + '---' + index})
 		response = requests.post(self.url_inbox, data=payload, verify=self.cafile)
 		self.html 		= response.text
 		self.cookies 	= response.cookies
@@ -70,9 +74,9 @@ class trashmail:
 		print("Logged in as " +  self.mail)
 
 		messages=soup.findAll('p', {'class':'message-subject'})
-		i=len(messages)+1
+
 		for m in messages:
-			i-=1
+			i = m.get("id").split('-')[2]
 			print("[" + str(i) + "] " + m.string)
 
 if(__name__ == '__main__'):
